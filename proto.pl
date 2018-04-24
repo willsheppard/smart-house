@@ -13,17 +13,31 @@ my ($task, $action) = @ARGV;
 initialise($file) unless -f $file;
 
 my $data = load($file);
-print "before: ".Dumper($data);
+#print "before: ".Dumper($data);
+display($data);
 
 die "usage: $0 [action] [task]\n" unless $action && $task;
 $data = action($data, $task, $action);
-print "after: ".Dumper($data);
+#print "after: ".Dumper($data);
+display($data);
 
 save($data, $file);
 
 exit;
 
 #############################
+
+# Show state of tasks
+sub display {
+    my ($data) = @_;
+    print "+------------+--------+\n";
+    print "| Task       | Status |\n";
+    print "+------------+--------+\n";
+    foreach my $task (keys %{ $data->{tasks} }) {
+        print "| $task      | ".$data->{tasks}{$task}{state}." |\n";
+    }
+    print "+------------+--------+\n";
+}
 
 # Change state of a task
 sub action {
