@@ -4,8 +4,6 @@ use strict;
 use warnings;
 
 use Storable;
-use Data::Dumper;
-$Data::Dumper::Sortkeys = 1;
 
 my $file = 'data.storable';
 my ($task, $action) = @ARGV;
@@ -13,12 +11,10 @@ my ($task, $action) = @ARGV;
 initialise($file) unless -f $file;
 
 my $data = load($file);
-#print "before: ".Dumper($data);
 display($data);
 
-die "usage: $0 [action] [task]\n" unless $action && $task;
+die "usage: $0 [task] [action]\n" unless $action && $task;
 $data = action($data, $task, $action);
-#print "after: ".Dumper($data);
 display($data);
 
 save($data, $file);
@@ -34,7 +30,7 @@ sub display {
     print "| Task       | Status |\n";
     print "+------------+--------+\n";
     foreach my $task (keys %{ $data->{tasks} }) {
-        print "| $task      | ".$data->{tasks}{$task}{state}." |\n";
+        print "| $task  | ".$data->{tasks}{$task}{state}."   |\n";
     }
     print "+------------+--------+\n";
 }
@@ -65,17 +61,15 @@ sub initialise {
     my ($file) = @_;
     my %data = (
         tasks => {
-            ceed_fats => {
+            feed_cats => {
                 id => 1,
-                display_name => "Deed Tats Fet Wood",
-                system_name => "deed_tats_fed_wood",
-                description => "Fill two b___ from c___ under s___",
+                display_name => "Feed cats wet food",
+                description => "Fill two bowls",
                 day => "every",
                 time => "8pm",
                 state => "todo",
             },
         }
-        #states => [qw/ todo doing done /],
     );
     store \%data, $file;
 }
