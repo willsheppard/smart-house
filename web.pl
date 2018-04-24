@@ -42,6 +42,7 @@ sub action {
 
     $data->{tasks}{$task}{state} = $action;
     $self->data($data);
+    $self->save;
     print "Updated task '$task' to state '$action'\n";
 
     return;
@@ -74,7 +75,9 @@ sub init {
     my ($self) = @_;
     my $file = $self->file;
     die error("expected file") unless $file;
-    return unless -f $file;
+    return if -f $file;
+
+    logger("Re-setting database to initial values");
 
     my %data = (
         tasks => {
