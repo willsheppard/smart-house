@@ -6,8 +6,9 @@ use HTTP::Server::Simple::CGI;
 use base qw(HTTP::Server::Simple::CGI);
 
 # setup
-Tasks::initialise();
-my $data = Tasks::load();
+my $tasks = Tasks->new;
+#$tasks->initialise();
+#my $data = $tasks->load;
 
 # webserver
 
@@ -34,8 +35,8 @@ $DB::single = 1;
 #        print "HTTP/1.0 200 OK\r\n";
 #        $handler->($cgi);
 #
-    if (Tasks::exists($data, $task)) {
-        $data = Tasks::action($data, $task, $action);
+    if ($tasks->task_exists($task)) {
+        $data = $tasks->action($task, $action);
         return web_display($cgi, $data);
     } else {
         print "HTTP/1.0 404 Not found\r\n";
@@ -96,23 +97,35 @@ sub resp_hello {
 sub logger {
     my ($msg) = @_;
     warn "LOGGER: $msg\n";
+    return;
 }
 
 package Tasks;
 
+use Moose;
 use Storable;
 
-my $file = 'data.storable';
+has 'file' => (
+   is => 'ro',
+   isa => 'Str',
+   default => 'data.storable',
+);
+
+sub BUILD {
+    my ($self, $args) = @_;
+$DB::single = 1;
+    $self->init;
+}
 
 # Check whether a task exists
 sub exists {
-    my ($data, $task) = @_;
+    my ($self, $data, $task) = @_;
     return exists $data->{tasks}{$task};
 }
 
 # Change state of a task
 sub action {
-    my ($data, $task, $action) = @_;
+    my ($self, $data, $task, $action) = @_;
     
     return error("expected data") unless $data;
     return error("expected task") unless $task;
@@ -125,7 +138,7 @@ sub action {
 
 # Save new data to disk
 sub save {
-    my ($data, $file) = @_;
+    my ($self, $data, $file) = @_;
     return error("expected data") unless $data;
     return error("expected file") unless $file;
     
@@ -134,16 +147,18 @@ sub save {
 
 # Retrieve data from disk
 sub load {
-    my ($file) = @_;
+    my ($self) = @_;
+    my $file = $self->file;
     return error("expected file") unless $file;
 
     my $data = retrieve($file);
     return $data;
 }
 
-# Save initial data to disk
-sub initialise {
-    my ($file) = @_;
+# Generate initial data. Run once only.
+sub init {
+    my ($self) = @_;
+    my $file = $self->file;
     return error("expected file") unless $file;
     return unless -f $file;
     
@@ -162,14 +177,17 @@ sub initialise {
     store \%data, $file;
 }
 
+# TODO: Add $self
 sub logger {
     my ($msg) = @_;
     warn "LOGGER: $msg\n";
+    return;
 }
 
 sub error {
     my ($msg) = @_;
     logger($msg);
+    return;
 }
 
 package main;
