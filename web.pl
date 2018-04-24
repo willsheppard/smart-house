@@ -1,43 +1,144 @@
 #!/usr/bin/perl
 
+{
+package Tasks;
+
+use Moose;
+use Storable;
+
+has 'file' => (
+   is => 'ro',
+   isa => 'Str',
+   default => 'data.storable',
+);
+
+has 'data' => (
+    is => 'rw',
+);
+
+sub BUILD {
+    my ($self, $args) = @_;
+    $self->init;
+    $self->load;
+}
+
+# Check whether a task exists
+sub task_exists {
+    my ($self, $task) = @_;
+    my $data = $self->data;
+    die error("expected task") unless $task;
+    return exists $data->{tasks}{$task};
+}
+
+# Change state of a task
+sub action {
+    my ($self, $task, $action) = @_;
+    my $data = $self->data;
+    my $file = $self->file;
+
+    die error("expected data") unless $data;
+    die error("expected task") unless $task;
+    die error("expected action") unless $action;
+
+    $data->{tasks}{$task}{state} = $action;
+    $self->data($data);
+    print "Updated task '$task' to state '$action'\n";
+
+    return;
+}
+
+# Save new data to disk
+sub save {
+    my ($self) = @_;
+    my $data = $self->data;
+    my $file = $self->file;
+    die error("expected data") unless $data;
+    die error("expected file") unless $file;
+
+    store $data, $file;
+}
+
+# Retrieve data from disk
+sub load {
+    my ($self) = @_;
+    my $file = $self->file;
+    die error("expected file") unless $file;
+
+    my $data = retrieve($file);
+    $self->data($data);
+    return;
+}
+
+# Generate initial data. Run once only.
+sub init {
+    my ($self) = @_;
+    my $file = $self->file;
+    die error("expected file") unless $file;
+    return unless -f $file;
+
+    my %data = (
+        tasks => {
+            feed_cats => {
+                id => 1,
+                display_name => "Feed cats wet food",
+                description => "Fill two bowls",
+                day => "every",
+                'time' => "8pm",
+                'state' => "todo",
+            },
+        }
+    );
+    store \%data, $file;
+
+    return;
+}
+
+# TODO: Add $self
+sub logger {
+    my ($msg) = @_;
+    warn "LOGGER: $msg\n";
+    return;
+}
+
+sub error {
+    my ($msg) = @_;
+    logger($msg);
+    return;
+}
+
+}
+
+#####
+
+{
 package MyWebServer;
- 
+
+use strict;
+use warnings;
+
 use HTTP::Server::Simple::CGI;
 use base qw(HTTP::Server::Simple::CGI);
 
 # setup
 my $tasks = Tasks->new;
-#$tasks->initialise();
-#my $data = $tasks->load;
 
 # webserver
 
-#my %dispatch = (
-#    '/hello' => \&resp_hello,
-#    # ...
-#);
- 
 sub handle_request {
     my $self = shift;
     my $cgi  = shift;
-   
-$DB::single = 1;
+
     my $path = $cgi->path_info();
     logger("Path = '$path'");
-    return web_display($cgi, $data) if $path =~ m{^/$};
+    return web_display($cgi, $tasks->data) if $path =~ m{^/$};
 
-#    my $handler = $dispatch{$path};
     my ($task, $action) = extract_path($path);
 
     return error($cgi, "Invalid request") unless $task && $action;
 
-#    if (ref($handler) eq "CODE") {
-#        print "HTTP/1.0 200 OK\r\n";
-#        $handler->($cgi);
-#
     if ($tasks->task_exists($task)) {
-        $data = $tasks->action($task, $action);
-        return web_display($cgi, $data);
+        $tasks->action($task, $action);
+        return web_display($cgi, $tasks->data);
     } else {
         print "HTTP/1.0 404 Not found\r\n";
         print $cgi->header,
@@ -57,14 +158,18 @@ sub extract_path {
 
 sub web_display {
     my ($cgi, $data) = @_;
+
     print "HTTP/1.0 200 Ok\r\n";
     print $cgi->header,
           $cgi->start_html('Tasks'),
           $cgi->strong('Display'),
           $cgi->br;
-          
-#          $cgi->p($msg),
-    print $cgi->p($_->{display_name} . ' => ' . $_->{state}) foreach $data->{tasks};
+
+    print $cgi->p(
+        $data->{tasks}{$_}{display_name}
+        . ' => ' .
+        $data->{tasks}{$_}{state}
+    ) foreach keys %{ $data->{tasks} };
 
     print $cgi->end_html;
     return;
@@ -82,117 +187,24 @@ sub error {
     return;
 }
 
-sub resp_hello {
-    my $cgi  = shift;   # CGI.pm object
-    return if !ref $cgi;
-     
-    my $who = $cgi->param('name');
-     
-    print $cgi->header,
-          $cgi->start_html("Hello"),
-          $cgi->h1("Hello $who!"),
-          $cgi->end_html;
-}
-
 sub logger {
     my ($msg) = @_;
     warn "LOGGER: $msg\n";
     return;
 }
 
-package Tasks;
-
-use Moose;
-use Storable;
-
-has 'file' => (
-   is => 'ro',
-   isa => 'Str',
-   default => 'data.storable',
-);
-
-sub BUILD {
-    my ($self, $args) = @_;
-$DB::single = 1;
-    $self->init;
 }
 
-# Check whether a task exists
-sub exists {
-    my ($self, $data, $task) = @_;
-    return exists $data->{tasks}{$task};
-}
+#####
 
-# Change state of a task
-sub action {
-    my ($self, $data, $task, $action) = @_;
-    
-    return error("expected data") unless $data;
-    return error("expected task") unless $task;
-    return error("expected action") unless $action;
-    
-    $data->{tasks}{$task}{state} = $action;
-    print "Updated task '$task' to state '$action'\n";
-    return $data;
-}
-
-# Save new data to disk
-sub save {
-    my ($self, $data, $file) = @_;
-    return error("expected data") unless $data;
-    return error("expected file") unless $file;
-    
-    store $data, $file;
-}
-
-# Retrieve data from disk
-sub load {
-    my ($self) = @_;
-    my $file = $self->file;
-    return error("expected file") unless $file;
-
-    my $data = retrieve($file);
-    return $data;
-}
-
-# Generate initial data. Run once only.
-sub init {
-    my ($self) = @_;
-    my $file = $self->file;
-    return error("expected file") unless $file;
-    return unless -f $file;
-    
-    my %data = (
-        tasks => {
-            feed_cats => {
-                id => 1,
-                display_name => "Feed cats wet food",
-                description => "Fill two bowls",
-                day => "every",
-                'time' => "8pm",
-                'state' => "todo",
-            },
-        }
-    );
-    store \%data, $file;
-}
-
-# TODO: Add $self
-sub logger {
-    my ($msg) = @_;
-    warn "LOGGER: $msg\n";
-    return;
-}
-
-sub error {
-    my ($msg) = @_;
-    logger($msg);
-    return;
-}
-
+{
 package main;
+
+use strict;
+use warnings;
 
 # start the server on port 8080
 #my $pid = MyWebServer->new(8080)->background();
 my $pid = MyWebServer->new(8080)->run();
 print "Use 'kill $pid' to stop server.\n";
+}
