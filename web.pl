@@ -20,14 +20,15 @@ sub handle_request {
     my $self = shift;
     my $cgi  = shift;
    
+$DB::single = 1;
     my $path = $cgi->path_info();
     logger("Path = '$path'");
-    return web_display($data) if $path =~ m{\d+/?$};
+    return web_display($cgi, $data) if $path =~ m{^/$};
 
 #    my $handler = $dispatch{$path};
-    my ($task, $action) = extract($path);
+    my ($task, $action) = extract_path($path);
 
-    return error("Invalid request") unless $task && $action;
+    return error($cgi, "Invalid request") unless $task && $action;
 
 #    if (ref($handler) eq "CODE") {
 #        print "HTTP/1.0 200 OK\r\n";
@@ -35,7 +36,7 @@ sub handle_request {
 #
     if (Tasks::exists($data, $task)) {
         $data = Tasks::action($data, $task, $action);
-        return web_display($data);
+        return web_display($cgi, $data);
     } else {
         print "HTTP/1.0 404 Not found\r\n";
         print $cgi->header,
@@ -54,7 +55,7 @@ sub extract_path {
 }
 
 sub web_display {
-    my ($data) = @_;
+    my ($cgi, $data) = @_;
     print "HTTP/1.0 200 Ok\r\n";
     print $cgi->header,
           $cgi->start_html('Tasks'),
@@ -69,7 +70,7 @@ sub web_display {
 }
 
 sub error {
-    my ($msg) = @_;
+    my ($cgi, $msg) = @_;
     print "HTTP/1.0 500 Error\r\n";
     print $cgi->header,
           $cgi->start_html('Error'),
@@ -98,6 +99,8 @@ sub logger {
 }
 
 package Tasks;
+
+use Storable;
 
 my $file = 'data.storable';
 
@@ -172,5 +175,6 @@ sub error {
 package main;
 
 # start the server on port 8080
-my $pid = MyWebServer->new(8080)->background();
+#my $pid = MyWebServer->new(8080)->background();
+my $pid = MyWebServer->new(8080)->run();
 print "Use 'kill $pid' to stop server.\n";
