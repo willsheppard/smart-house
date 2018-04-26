@@ -1,0 +1,7 @@
+system_name,display_name,description,notes,when,times,states
+feed_cats,"Feed cats wet food",,,mon/tue/wed/thu/fri/sat/sun,6pm,todo/done
+clean_cat_bowls,"Clean cat bowls",,,mon/tue/wed/thu/fri/sat/sun,6am,todo/done
+clothes_wash,"Put clothes in washing machine",,,mon/wed/fri/sat/sun,6pm,todo/washing/done=clothes_dry
+clothes_dry,"Take clothes out of washing machine",,,none,none,todo/done=put_dry_clothes_away
+put_hanging_dry_clothes_away,"Put hanging dry clothes away",,,hang_clothes_to_dry+24/load_clothes_dryer+2.5,none,todo/doing/done
+put_dryer_dry_clothes_away,"Put dry clothes away from dryer",,,load_clothes_dryer+2.5,none,todo/doing/done
