@@ -10,7 +10,6 @@ use DateTime;
 has 'file' => (
    is => 'ro',
    isa => 'Str',
-   #default => 'data.storable',
    default => 'data.csv',
 );
 
@@ -39,7 +38,6 @@ has 'day' => (
 
 sub BUILD {
     my ($self, $args) = @_;
-    $self->init;
     $self->load;
 }
 
@@ -61,7 +59,7 @@ sub action {
     die error("expected task") unless $task;
     die error("expected action") unless $action;
 
-    $data->{tasks}{$task}{state} = $action;
+    $data->{tasks}{$task}{current_state} = $action;
     $self->data($data);
     $self->save;
     print "Updated task '$task' to state '$action'\n";
@@ -71,13 +69,16 @@ sub action {
 
 # Save new data to disk
 sub save {
+
     my ($self) = @_;
     my $data = $self->data;
     my $file = $self->file;
     die error("expected data") unless $data;
     die error("expected file") unless $file;
 
-    store $data, $file;
+    warn error("Not implemented: Save to CSV");
+
+    ###store $data, $file;
 }
 
 # Retrieve data from disk
@@ -140,43 +141,6 @@ print "data = ".Dumper($data);
     return;
 }
 
-# Retrieve data from disk
-sub load_old {
-    my ($self) = @_;
-    my $file = $self->file;
-    die error("expected file") unless $file;
-
-    my $data = retrieve($file);
-    $self->data($data);
-    return;
-}
-
-# Generate initial data. Run once only.
-sub init {
-    my ($self) = @_;
-    my $file = $self->file;
-    die error("expected file") unless $file;
-    return if -f $file;
-
-    logger("Re-setting database to initial values");
-
-    my %data = (
-        tasks => {
-            feed_cats => {
-                id => 1,
-                display_name => "Feed cats wet food",
-                description => "Fill two bowls",
-                day => "every",
-                'time' => "8pm",
-                'state' => "todo",
-            },
-        }
-    );
-    store \%data, $file;
-
-    return;
-}
-
 # TODO: Add $self
 sub logger {
     my ($msg) = @_;
@@ -187,7 +151,7 @@ sub logger {
 sub error {
     my ($msg) = @_;
     logger($msg);
-    return;
+    return $msg;
 }
 
 }
