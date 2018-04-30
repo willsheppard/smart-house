@@ -4,8 +4,8 @@
 package Tasks;
 
 use Moose;
-use Storable;
 use DateTime;
+use Text::CSV;
 
 has 'file' => (
    is => 'ro',
@@ -36,6 +36,27 @@ has 'day' => (
     },
 );
 
+has 'csv' => (
+    is => 'ro',
+    isa => 'Object',
+    default => sub {
+        my ($self) = @_;
+        my $args = defined $self->csv_eol ? { eol => $self->csv_eol } : {};
+        Text::CSV->new({ eol => $/ }) or die "Cannot use CSV: ".Text::CSV->error_diag;
+    },
+);
+
+has 'csv_eol' => (
+    is => 'rw',
+    isa => 'Str',
+    default => "\n", # This will overwrite existing line ending
+);
+
+has 'headers' => (
+    is => 'rw',
+    isa => 'ArrayRef',
+);
+
 sub BUILD {
     my ($self, $args) = @_;
     $self->load;
@@ -62,6 +83,7 @@ sub action {
     $data->{tasks}{$task}{current_state} = $action;
     $self->data($data);
     $self->save;
+    # TODO: Save current state
     print "Updated task '$task' to state '$action'\n";
 
     return;
@@ -69,27 +91,81 @@ sub action {
 
 # Save new data to disk
 sub save {
-
     my ($self) = @_;
     my $data = $self->data;
     my $file = $self->file;
     die error("expected data") unless $data;
     die error("expected file") unless $file;
 
-    warn error("Not implemented: Save to CSV");
+    # Flatten data to CSV format
+    my @lines;
+    foreach my $key (sort { $data->{tasks}{$a}{id} <=> $data->{tasks}{$b}{id} } keys %{ $data->{tasks} }) {
+        my $row = $data->{tasks}{$key};
 
-    ###store $data, $file;
+        $row->{system_name} = $key;
+
+        # unexplode fields
+        $row->{when} = join('/', @{ delete $row->{when} });
+        $row->{states} = join('/', @{ $self->_list_states( delete $row->{states} ) } );
+        $row->{states} =~ s/=finish$//;
+        $row->{states} =~ s/ext://g;
+
+        delete $row->{active};
+        delete $row->{current_state};
+
+        my $sorted = $self->_sort_fields($row);
+
+        push @lines, $sorted;
+    }
+
+    # Write to CSV file
+    my $csv = $self->csv;
+    open my $fh, ">:encoding(utf8)", $self->file or die $self->file.": $!";
+    my $headers = $self->headers;
+    $csv->print($fh, $headers);
+    foreach my $line (@lines) {
+        $csv->print($fh, $line);
+    }
+    close($fh);
+
+    return;
+}
+
+sub _sort_fields {
+    my ($self, $row) = @_;
+    my $headers = $self->headers;
+    my @list;
+    foreach my $column (@$headers) {
+        push @list, $row->{$column};
+    }
+    return \@list;
+}
+
+sub _list_states {
+    my ($self, $states) = @_;
+    my $key = 'start';
+    my @list;
+    STATES:
+    until ($key eq 'finish') {
+        if (! $states->{ $states->{ $states->{$key} } }) {
+            push @list, $states->{$key}.'='.$states->{ $states->{$key} };
+            last STATES;
+        }
+        push @list, $states->{$key};
+        $key = $states->{$key};
+    }
+    return \@list;
 }
 
 # Retrieve data from disk
 sub load {
     my ($self) = @_;
-    use Text::CSV;
-    my $csv = Text::CSV->new or die "Cannot use CSV: ".Text::CSV->error_diag;
-    open my $fh, "<:encoding(utf8)", $self->file or die $self->file.": $!";
     # Parse CSV into data structure
     # TODO: Use a class for the data instead of a hash
+    my $csv = $self->csv;
+    open my $fh, "<:encoding(utf8)", $self->file or die $self->file.": $!";
     my $headers = $csv->getline($fh);
+    $self->headers($headers); # save for writing back later
     $csv->column_names(@$headers);
     my $data;
     while (my $row = $csv->getline_hr($fh)) {
@@ -133,8 +209,6 @@ sub load {
         # populate data
         $data->{tasks}{$key} = $row;
     }
-use Data::Dumper;
-print "data = ".Dumper($data);
     $csv->eof or $csv->error_diag;
     close $fh;
     $self->data($data);
@@ -256,7 +330,7 @@ use strict;
 use warnings;
 
 # start the server on port 8080
-#my $pid = MyWebServer->new(8080)->background();
-my $pid = MyWebServer->new(8080)->run();
+#my $pid = MyWebServer->new(8080)->background(); # for production
+my $pid = MyWebServer->new(8080)->run(); # for development
 print "Use 'kill $pid' to stop server.\n";
 }
